@@ -1,0 +1,201 @@
+---
+title: 'Project 1: Wrangling, Exploration, Visualization'
+author: "SDS322E"
+date: ''
+output:
+  html_document:
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+  pdf_document:
+    toc: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F,
+tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
+```
+
+## Data Wrangling, Exploration, Visualization
+
+### Jack Rickman UT EID: jhr2368
+
+#### Introduction 
+
+For this project, I will be uses data from the tidytuesdayR challenge (2021 week 38) on Github, url: https://github.com/rfordatascience/tidytuesday/blob/f95ae604ba5bde87e226f6169b91857b5750c27f/data/2021/2021-09-14/readme.md. One of the data sets is "billboard" that includes the chart rankings which are based on sales (physical and digital), radio play, and online streaming in the United States. The billboard data set contains information on each weeks top 100 songs from October 11, 1958 to May 8, 2021. This includes some general information such as the song_id (combo of song/singer), song, performer, week_id, week_position (1: 100), previous_week_position, peak_position (Peak position as of that week), weeks_on_chart (Weeks on chart as of that week), instance (Example, an instance of 3 tells you that this is the third time this song has appeared on the chart that year), and the url (will not be using in this project). The other data set is "audio_features" that comes from Spotify, and includes a bunch of duplicate information that "billboard" provides. The unique columns that I will use in this data set and that are not in "billboard" include spotify_track_explicit	(True/False), spotify_track_album, danceability	(Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity. A value of 0.0 is least danceable and 1.0 is most danceable.), energy	(Energy is a measure from 0.0 to 1.0 and represents a perceptual measure of intensity and activity. Typically, energetic tracks feel fast, loud, and noisy. For example, death metal has high energy, while a Bach prelude scores low on the scale. Perceptual features contributing to this attribute include dynamic range, perceived loudness, timbre, onset rate, and general entropy.), liveness (Detects the presence of an audience in the recording. Higher liveness values represent an increased probability that the track was performed live. A value above 0.8 provides strong likelihood that the track is live.), valence (A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track. Tracks with high valence sound more positive (e.g. happy, cheerful, euphoric), while tracks with low valence sound more negative (e.g. sad, depressed, angry).), tempo	(The overall estimated tempo of a track in beats per minute (BPM). In musical terminology, tempo is the speed or pace of a given piece and derives directly from the average beat duration.), spotify_track_popularity. With all of this to look at, my objective in this project is to find the associations between variables in the "audio_features" data set and see what relation they have with a given song being on the Billboard chart. There are other features I will go over but this is the main gaol of the project!
+
+```{R}
+# read your datasets in here, e.g., with read_csv()
+# Get the Data
+
+# Read in with tidytuesdayR package 
+# Install from CRAN via: 
+library(tidyverse)
+# install.packages("tidytuesdayR")
+
+tuesdata <- tidytuesdayR::tt_load(2021, week = 38)
+
+billboard <- tuesdata$billboard 
+audio_features <- tuesdata$audio_features
+
+audio_features <- audio_features %>% distinct(song_id, song, performer, .keep_all = TRUE)
+# Remove duplicated songs (117 songs)
+
+# Check to make sure no more duplicates
+# audio_features1 %>% group_by(song_id) %>% filter(n()>1) %>% select(song_id) %>% distinct
+```
+
+#### Tidying: Reshaping
+
+```{R}
+# your tidying code (if applicable; can also wait until wrangling section)
+library(tidyr)
+library(dplyr)
+library(readr)
+# billboard %>% pivot_wider(id_cols = )
+billboard %>% separate(week_id, sep="/", into = c("month", "day", "year"), remove = FALSE) %>% arrange_at(vars(year, month, day, week_position)) -> billboard
+# Also we will reshape some summary statistics at the wrangling portion of the project!
+```
+
+    
+#### Joining/Merging
+
+```{R}
+nrow(billboard)
+# There are 327895 observations in the billboards data set.
+nrow(audio_features)
+# There are 29386 oberservations in the new audio_features data set.
+
+billboard %>% distinct(week_id) %>% summarise(n = n())
+#  We find that there are 3279 unique weeks observed in the billboards data set.
+
+billboard %>% distinct(song_id, song, performer) %>% summarise(n = n())
+# We find that there are 29389 unique songs in the billboards dataset.
+
+audio_features %>% distinct(song_id, song, performer) %>% summarise(n = n())
+# We find that there are unique 29386 songs in the audio_features data set.
+
+```
+
+Here we find some basic information about the uniqueness of the key, song_id, in each dataset. We see that there are in total 327895 observations in "billboards" with 3279 unique weeks and 29389 unique songs. Also in our new audio_features1 data set, all of the songs are unique with 29386 songs.
+
+
+```{R}
+# Retained all matching rows from the "audio features" data set to the "billboard" data set.
+df_leftj <- left_join(billboard, audio_features, by = c("song_id", "song", "performer"))
+nrow(df_leftj)
+
+
+# Joined so that we retain rows in both datasets by song_id.
+df_innerj <- inner_join(billboard, audio_features, by = c("song_id", "song", "performer"))
+# The amount of song_id's the data sets have in common.
+nrow(df_innerj)
+
+# Song in the "billboards" data set that have no match in the "audio features" data set.
+df_antij1 <- anti_join(billboard, audio_features, by = c("song_id", "song", "performer"))
+df_antij1
+# Number of "billboard" observations that are not in "audio features"
+nrow(df_antij1)
+
+# Songs in the "audio features" data set that have no match in the "billbaords" data set.
+df_antij2 <- anti_join(audio_features, billboard,by = c("song_id","song", "performer"))
+df_antij2
+# Number of "audio_features" observations that are not in "billboard"
+nrow(df_antij2)
+```
+
+
+For the joins, I started with a left join so we retain all the billboard observations and match the rows to "audio_features". This join maintains the same amount of observations as "billboard" due to the fact we removed all dupilcate songs from "audio_features". Next I did a inner join to make sure we have all obervations that have billboard chart data and audio features. There were 327642 observations that were shared by both our data sets. Finally, we have two anti joins to find that there are 253 observations that are in "billboard" and not in "audio_features", and there are 18 observations that are in "audio_features" and not "billboard". I also output the observation of these two anti-joins. Most of the observations that are in "audio_features" and not in "billboard" do not have most of the Spotify information anyways.
+
+####  Wrangling
+
+```{R}
+
+# Remove does not include genres along with other unused columns.
+df_innerj$year <- as.numeric(df_innerj$year)
+df <- df_innerj %>% select(-c(1,2,15,16,17, 22,23, 24, 26,31)) %>% rename(album = spotify_track_album, genre = spotify_genre) 
+df_genre <- df %>% separate_rows(genre,sep=", ")
+# Remove whitespace
+df_genre$genre <- gsub("\\[|\\]|\\'", "", df_genre$genre) 
+# Take out empty genre entries
+df_genre_count <- df_genre %>% filter(genre != "") %>% group_by(genre) %>% summarise(count = n()) %>% arrange(desc(count))
+# Count of each genre type in the billboard charts
+# 1
+
+genre_graph <- df_genre %>% select(genre, song_id, week_position, spotify_track_popularity)  %>% na.omit() %>% group_by(genre) %>% summarise(avg_position = mean(week_position), avg_popularity = mean(spotify_track_popularity), n = n()) %>% arrange(avg_position, avg_popularity) 
+# Get average chart position, average popularity, and count for each genre.
+# 2
+
+
+drake <- df %>% filter(performer == "Drake") # 707 and beyond should have album as Dark Demo Tapes
+df$album[df$album == drake$album[707]] <- "Dark Demo Tapes"
+
+# Create a dataset only comparing Drake, Michael Jackson, and The Beatles
+beatles_drake_mj <- df %>% filter(performer %in% c('Michael Jackson', 'Drake', 'The Beatles')) %>% group_by(performer, album) %>% summarise(count = n(), avg_position = mean(week_position)) %>% arrange(avg_position) %>% na.omit()
+# 3
+
+
+# Create a decade column
+df_decade <- df_innerj %>% select(-c(1,2,14,15,16,17, 22,23, 24, 26,31)) %>% mutate(decade = ((year %/% 10)*10))
+decade_graph <- df_decade %>% na.omit() %>% group_by(decade, spotify_track_explicit) %>% summarise(count = n(), avg_val = mean(valence), avg_dance = mean(danceability))
+# 4
+
+x1 <- df %>% filter(week_position <= 10) %>% distinct(song_id, song, performer, .keep_all = TRUE) %>% group_by(peak_position) %>% summarise(across(c(danceability, energy, liveness, valence), c(mean, sd), na.rm = TRUE))
+
+  
+# Arranged from lowest to highest dance_energy ratio
+der <- df %>% mutate(dance_energy_ratio = danceability/energy) %>% select(song, performer, year, danceability, energy, valence, dance_energy_ratio)%>% drop_na(dance_energy_ratio) %>% filter(dance_energy_ratio != 0) %>% arrange(desc(dance_energy_ratio))
+# Arranged from highest to lowest dance_energy ratio
+der %>% group_by(year) %>% summarise(avg_dance_energy_ratio = mean(dance_energy_ratio), avg_val = mean(valence))-> graph2
+
+
+# Billboard songs summarized with their max peak on the charts, number of times in on the Billboard Top 100, its average position, and the standard deviation of its position. I arranged it by its average position and wanted to see 
+x <- billboard %>% group_by(song_id, song, performer) %>% summarise(times_in_top100 = n(), max_peak = min(peak_position), avg_position = mean(week_position), sd_position = sd(week_position)) %>% arrange(avg_position) %>% filter(times_in_top100 > 10, max_peak == 1)
+
+df  %>% drop_na(spotify_track_explicit) %>% group_by(performer, spotify_track_explicit) %>% summarise(times_in_top100 = n(), max_peak = min(peak_position), avg_position = mean(week_position)) -> clean_dirty
+clean_dirty_final <- clean_dirty[clean_dirty$performer %in% clean_dirty$performer[duplicated(clean_dirty$performer)],] 
+
+library(knitr)
+library(kableExtra)
+df_genre_count %>% kbl(caption = "Genre Count on Billboard Chart") %>% kable_classic(full_width = F, html_font = "Cambria")
+decade_graph
+beatles_drake_mj
+graph2
+clean_dirty_final
+
+```
+
+I first cleaned up the data to only have the columns I was going to use. I had to clean up the genre column and make more rows to get each individual genre per song. 
+This was to get a count of each genre type in the billboard charts. After that, I created a dataset only comparing Drake, Michael Jackson, and The Beatles because they are my favorite artist and very popular. I am going to use this data set for one of my graphs. After that I created a new decade variable to categorize the billbaords by a different metric and to summarize the average valence and average danceability per decade. For the next table, I made a new variable called the dance-energy-ratio and used this to find which years had the highest ratio and valence averages. For my final table, I seperated the clean and dirty songs and summarized the times those songs were in the top_100, its max peak in the charts, and its average position on the charts!
+
+
+#### Visualizing
+
+```{R}
+graph_final_1 <- clean_dirty_final %>% filter(times_in_top100 >= 250)
+ggplot(data = graph_final_1, aes(x = performer, y = avg_position, fill = spotify_track_explicit)) + geom_bar(position = "dodge", stat = "summary") + 
+  labs(title = "Top Performer's Average Billboard Postion: Clean vs Dirty", x = 'Artist', y = 'Average Position') 
+```
+
+This chart show the comparison of the most popular artists bill board position. This only shows the artists that have appeared over 250 times on a clean/dirty verison. We see that more songs by artist that are clean have been on 250 times than dirty songs. Only 3 artist have had 250 spong appearances on the chart. Those artist include: Drake, Eminem, and The Weeknd!
+
+```{R}
+ggplot(data = graph2, aes(x = year, y = avg_dance_energy_ratio)) + geom_bar(stat = "identity") + geom_smooth(stat = "identity") + labs(title = "Dance-Energy-Ratio Over Time", x = 'Year', y = 'Average Dance-Energy-Ratio') + scale_x_continuous(breaks = seq(1958, 2021, by = 3)) + scale_y_continuous(breaks = seq(0, 2.5, by = 0.25))
+```
+
+As we see from the graph that the dance-energy-ratio goes down slightly over time, but remains fairly consistantly over 1. 
+
+```{R}
+beatles_drake_mj %>% group_by(performer) %>% slice_min(order_by = avg_position, n = 4) -> graph3
+ggplot(graph3, aes(x = performer, y = avg_position, fill = album)) +
+  geom_bar(stat = "identity", position = position_dodge()) + scale_y_continuous(breaks = seq(0, 30, by = 5)) + labs(title = "Comparing Top Albums", x = 'Artist', y = 'Average Billboard Position')
+```
+
+These are some of my favorite music artist! I selected their 4 best billboard albums and compared them. We see that The Beatles did the best on their top 4 albumns. Something to note that the data set doesn't include Sgt. Pepper's Lonely Hearts Club Band for The Beatles! 
+
+
+
+
+
+
